@@ -1,23 +1,12 @@
 import React, { Component } from "react";
-
-//import relevant components from react native
-import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat'
+import { GiftedChat, Bubble } from 'react-native-gifted-chat'
 import { View, Text, StyleSheet} from 'react-native';
-
-import { signInAnonymously } from "firebase/auth";
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import NetInfo from '@react-native-community/netinfo';
-
-import MapView from 'react-native-maps';
-
-//import custom CustomActions
-import CustomActions from './CustomActions';
 
 //Firestore Database
 const firebase = require('firebase');
 require('firebase/firestore');
 
-//// firebase adding credential in order to connect to firebase
+// SDK from Firestore
 const firebaseConfig = {
   apiKey: "AIzaSyDueaDz7lAjboRMCGm6GBXRBe-MRs5AD0Q",
   authDomain: "chatapp-7195d.firebaseapp.com",
@@ -37,10 +26,7 @@ class Chat extends Component {
         _id: "",
         name: "",
         avatar: "",
-        image: null,
-        location: null,
       },
-      isConnected: false,
     }
 
     // initializes the Firestore app
@@ -59,16 +45,8 @@ class Chat extends Component {
 
     // Reference to load messages via Firebase
     this.referenceChatMessages = firebase.firestore().collection("messages");
-    
-    
-    NetInfo.fetch().then(connection => {
-      if (connection.isConnected) {
-        this.setState({ isConnected: true });
-        console.log('online');
-      } else {
-        console.log('offline');
-      }
-      // Authenticates user via Firebase
+
+    // Authenticates user via Firebase
     this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
       if (!user) {
         firebase.auth().signInAnonymously();
@@ -86,53 +64,16 @@ class Chat extends Component {
                 .firestore()
                 .collection("messages")
                 .where("uid", '==', this.state.uid);
-                
-                // save messages when user online
-                this.saveMessages();
       this.unsubscribe = this.referenceChatMessages
         .orderBy("createdAt", "desc")
-        
+        .onSnapshot(this.onCollectionUpdate);
   });
-    });
-}
-
-// // temporarly storage of messages (storage)
-async getMessages() {
-  let messages = '';
-  try {
-    messages = await AsyncStorage.getItem('messages') || [];
-    this.setState({
-      messages: JSON.parse(messages)
-    });
-  } catch (error) {
-    
-  }
-};
-
-// firebase storage
-async saveMessages() {
-  try {
-    await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
-  } catch (error) {
-    console.log(error.message);
-  }
-}
-
-async deleteMessages() {
-  try {
-    await AsyncStorage.removeItem('messages');
-    this.setState({
-      messages: []
-    })
-  } catch (error) {
-    console.log(error.message);
-  }
 }
 
 // stop listening to auth and collection changes
 componentWillUnmount() {
   this.authUnsubscribe();
-  
+  this.unsubscribe();
 }
 
  // Adds messages to cloud storage
@@ -144,8 +85,6 @@ componentWillUnmount() {
     text: message.text || "",
     createdAt: message.createdAt,
     user: message.user,
-    image: message.image || null,
-    location: message.location || null,
   });
 }
 
@@ -154,46 +93,25 @@ onSend(messages = []) {
     messages: GiftedChat.append(previousState.messages, messages),
   }),() => {
     this.addMessages();
-    this.saveMessages();
   });
 }
-
 
 onCollectionUpdate = (querySnapshot) => {
   const messages = [];
   // go through each document
   querySnapshot.forEach((doc) => {
     // get the QueryDocumentSnapshot's data
-    var data = doc.data();
+    let data = doc.data();
     messages.push({
       _id: data._id,
       text: data.text,
       createdAt: data.createdAt.toDate(),
-      user: {
-        _id: data.user._id,
-        name: data.user.name,
-        avatar: data.user.avatar
-      },
-      image: data.image || null,
-      location: data.location || null,
+      user: data.user,
     });
   });
   this.setState({
-    messages: messages,
+    messages: messages
   });
-};
-
-
-// When user is offline disable sending new messages 
-renderInputToolbar(props) {
-  if (this.state.isConnected == false) {
-  } else {
-    return(
-      <InputToolbar
-      {...props}
-      />
-    );
-  }
 }
 
 // Customize the color of the sender bubble
@@ -210,54 +128,20 @@ renderBubble(props) {
   )
 }
 
-// creating the circle button
-renderCustomActions = (props) => {
-  return <CustomActions {...props} />;
-};
-
- //Render the map location
-renderCustomView (props) {
-  const { currentMessage} = props;
-  if (currentMessage.location) {
-    return (
-        <MapView
-          style={{width: 150,
-            height: 100,
-            borderRadius: 13,
-            margin: 3}}
-          region={{
-            latitude: currentMessage.location.latitude,
-            longitude: currentMessage.location.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-        />
-    );
-  }
-  return null;
-}
-
   render() {
     let { color, name } = this.props.route.params;
     return (
-
-      //fullscreen component
       <View style={[{ backgroundColor: color }, styles.container]}>
       <GiftedChat
-          renderBubble={this.renderBubble.bind(this)}
-          messages={this.state.messages}
-          //Render action is responsible for creating the circle button 
-          renderActions={this.renderCustomActions}
-          
-          renderInputToolbar={this.renderInputToolbar.bind(this)}
-          renderCustomView={this.renderCustomView}
-          onSend={(messages) => this.onSend(messages)}
-          user={{
-            _id: this.state.user._id,
-            name: name,
-            avatar: this.state.user.avatar 
+      renderBubble={this.renderBubble.bind(this)}
+      messages={this.state.messages}
+      onSend={(messages) => this.onSend(messages)}
+      user={{
+        _id: this.state.user._id,
+        name: name,
+         avatar: this.state.user.avatar 
 
-          }}
+      }}
     />
      {/* Avoid keyboard to overlap text messages on older Andriod versions  */}
     {Platform.OS === 'android' ? <KeyboardAvoidingView behavior="height" /> : null}
