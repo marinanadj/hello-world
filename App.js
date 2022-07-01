@@ -1,5 +1,4 @@
 import React, { Component } from 'react';
-import { StyleSheet, View, Text, TextInput, Button, Alert, ScrollView } from 'react-native';
 import Chat from './components/Chat';
 import Start from './components/Start';
 import 'react-native-gesture-handler';
@@ -7,7 +6,7 @@ import 'react-native-gesture-handler';
 // import react navigation
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+
 
 //Create the navigator
 const Stack = createStackNavigator();
