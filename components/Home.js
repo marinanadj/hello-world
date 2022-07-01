@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, View, Pressable, TouchableOpacity, ImageBackground, Platform, KeyboardAvoidingView } from 'react-native';
-import BackgroundImage from '../img/Background_Image.png';
+import BackgroundImage from '../img/BackgroundImage.png';
 
-import { signInAnonymously } from "firebase/auth";
-import { auth } from '../config/firebase';
+import { auth } from './config/firebase';
 
 import NetInfo from '@react-native-community/netinfo';
 
