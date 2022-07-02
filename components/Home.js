@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, View, Pressable, TouchableOpacity, ImageBackground, Platform, KeyboardAvoidingView } from 'react-native';
-import BackgroundImage from '../img/BackgroundImage.png';
+import BackgroundImage from '../img/BackgroundImage.png'
 
-import { auth } from '../config/firebase';
-
-import NetInfo from '@react-native-community/netinfo';
+import { auth } from './config/firebase';
 
 // Create constant that holds background colors for Chat Screen
 const colors = {
