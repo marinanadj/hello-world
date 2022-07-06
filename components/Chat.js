@@ -2,7 +2,7 @@ import React, { Component } from "react";
 import { GiftedChat, Bubble } from 'react-native-gifted-chat'
 import { View, Text, StyleSheet} from 'react-native';
 
-
+import { db, auth } from "../config/firebase"
 
 
 class Chat extends Component {
