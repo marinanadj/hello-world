@@ -6,12 +6,12 @@ import Constants from "expo-constants";
 
 // Firebase config
 const firebaseConfig = {
-    apiKey: "AIzaSyDueaDz7lAjboRMCGm6GBXRBe-MRs5AD0Q",
-    authDomain: "chatapp-7195d.firebaseapp.com",
-    projectId: "chatapp-7195d",
-    storageBucket: "chatapp-7195d.appspot.com",
-    messagingSenderId: "35620742814",
-    appId: "1:35620742814:web:0eca889e9f90a8f9ba3d8f"
+  apiKey: "AIzaSyAR_GK-5CLLmjwteqyY6Hs1O-6I8PGTFLY",
+  authDomain: "hallo-world-1efc5.firebaseapp.com",
+  projectId: "hallo-world-1efc5",
+  storageBucket: "hallo-world-1efc5.appspot.com",
+  messagingSenderId: "169862681225",
+  appId: "1:169862681225:web:0e4d5170059057210aec58"
   };
 
 // Initialize Firebase
