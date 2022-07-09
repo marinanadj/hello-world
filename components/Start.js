@@ -19,33 +19,6 @@ export default function Start(props) {
   // State to hold information if user is offline or online
   const [isConnected, setIsConnected] = useState(false);
 
-  // Authenticate the user via Firebase and then redirect to the chat screen, passing the name and color props
-  const onHandleStart = () => {
-    if (isConnected) {
-      signInAnonymously(auth)
-        .then(() => {
-          console.log('Login success');
-          props.navigation.navigate('Chat', { name: name, color: color });
-        })
-        .catch(err => console.log(`Login err: ${err}`));
-    }
-    else {
-      props.navigation.navigate('Chat', { name: name, color: color });
-    }
-  }
-
-  useEffect(() => {
-
-    // Check if user is offline or online using NetInfo
-    NetInfo.fetch().then(connection => {
-      if (connection.isConnected) {
-        setIsConnected(true);
-      } else {
-        setIsConnected(false);
-      }
-    });
-
-  })
 
 
   return (
