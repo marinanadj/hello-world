@@ -90,19 +90,7 @@ export default function Start(props) {
           </View>
 
           {/* Authenticate user & Open chatroom, passing user name and background color as props */}
-          <Pressable
-            onPress={onHandleStart}
-            style={({ pressed }) => [
-              {
-                backgroundColor: pressed
-                  ? '#585563'
-                  : '#757083'
-              },
-              styles.button
-            ]}
-          >
-            <Text style={styles.buttontext}>Start Chatting</Text>
-          </Pressable>
+          
         </View>
       </ImageBackground>
       {Platform.OS === 'android' ? <KeyboardAvoidingView behavior="height" /> : null}
