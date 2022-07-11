@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 // import the screens
-import Home from './components/Start';
+import Start from './components/Start';
 import Chat from './components/Chat';
 // import react native gesture handler
 import 'react-native-gesture-handler';
@@ -18,7 +18,7 @@ export default class App extends React.Component{
         >
           <Stack.Screen
             name="Chat App"
-            component={Home}
+            component={Start}
           />
           <Stack.Screen
             name="Chat"
