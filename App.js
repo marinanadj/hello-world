@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 // import the screens
-import Home from './components/Home';
+import Home from './components/Start';
 import Chat from './components/Chat';
 // import react native gesture handler
 import 'react-native-gesture-handler';
