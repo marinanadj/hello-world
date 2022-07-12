@@ -1,185 +1,235 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, View, Pressable, TouchableOpacity, ImageBackground, Platform, KeyboardAvoidingView } from 'react-native';
-import BackgroundImage from '../img/BackgroundImage.png';
-
-import { signInAnonymously } from "firebase/auth";
-import { auth } from '../config/firebase';
-
+import React from 'react';
+import { View, Text, Button, Platform, KeyboardAvoidingView } from 'react-native';
+import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
+import firebase from "firebase";
+import "firebase/firestore";
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo';
 
-// Create constant that holds background colors for Chat Screen
-const colors = {
-    pink: "#FFC0CB",
-    purple: "#474056",
-    grey: "#8A95A5",
-    green: "#B9C6AE",
-};
+export default class Chat extends React.Component {
 
-export default function Start(props) {
-    let [name, setName] = useState();
-    let [color, setColor] = useState();
+    constructor() {
+        super();
+        this.state = {
+            messages: [],
+            uid: 0,
+            user: {
+                _id: "",
+                name: "",
+                avatar: "",
+                image: null,
+                location: null,
+            },
+            isConnected: false
 
-    // State to hold information if user is offline or online
-    const [isConnected, setIsConnected] = useState(false);
+        };
 
-    // Authenticate the user via Firebase and then redirect to the chat screen, passing the name and color props
-    const onHandleStart = () => {
-        if (isConnected) {
-            signInAnonymously(auth)
-                .then(() => {
-                    console.log('Login success');
-                    props.navigation.navigate('Chat', { name: name, color: color });
-                })
-                .catch(err => console.log(`Login err: ${err}`));
+
+        //Config parameters for the database
+        const firebaseConfig = {
+            apiKey: "AIzaSyCWbJ4FUbljnu9BSekgF7v5S4tt39rrml4",
+            authDomain: "chatapp-96fe4.firebaseapp.com",
+            projectId: "chatapp-96fe4",
+            storageBucket: "chatapp-96fe4.appspot.com",
+            messagingSenderId: "460847624665",
+            appId: "1:460847624665:web:214f252bd4f88527eea9c8",
+            measurementId: "G-HDQ8KG7R0H"
+        };
+
+        //initialize 
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
         }
-        else {
-            props.navigation.navigate('Chat', { name: name, color: color });
-        }
+
+        //references the messages collection in the database
+        this.referenceChatMessages = firebase.firestore().collection("messages");
     }
 
-    useEffect(() => {
-
-        // Check if user is offline or online using NetInfo
-        NetInfo.fetch().then(connection => {
-            if (connection.isConnected) {
-                setIsConnected(true);
-            } else {
-                setIsConnected(false);
-            }
+    onCollectionUpdate = (querySnapshot) => {
+        const messages = [];
+        // goes through each document
+        querySnapshot.forEach((doc) => {
+            // gets the QueryDocumentSnapshot's data
+            let data = doc.data();
+            messages.push({
+                _id: data._id,
+                createdAt: data.createdAt.toDate(),
+                text: data.text,
+                user: {
+                    _id: data.user._id,
+                    name: data.user.name,
+                    avatar: data.user.avatar
+                },
+                image: data.image || null,
+                location: data.location || null
+            });
+        });
+        this.setState({
+            messages: messages
         });
 
-    })
+    };
 
+    //adding messages to the database
+    addMessage() {
+        const message = this.state.messages[0];
 
-    return (
-        <View style={styles.container}>
-            <ImageBackground
-                source={BackgroundImage}
-                resizeMode='cover'
-                style={styles.image}
-            >
-
-                <Text style={styles.title}>Chat App</Text>
-
-                <View style={styles.box}>
-
-                    {/* Input box to set user name passed to chat screen */}
-                    <TextInput
-                        onChangeText={(name) => setName(name)}
-                        value={name}
-                        style={styles.input}
-                        placeholder='Your name...'
-                    />
-
-                    {/* Allow user to choose a background color for the chat screen */}
-                    <Text style={styles.text}>Choose Background Color:</Text>
-                    <View style={styles.colorContainer}>
-                        <TouchableOpacity
-                            style={[{ backgroundColor: colors.pink }, styles.colorbutton]}
-                            onPress={() => setColor(colors.pink)}
-                        />
-                        <TouchableOpacity
-                            style={[{ backgroundColor: colors.purple }, styles.colorbutton]}
-                            onPress={() => setColor(colors.purple)}
-                        />
-                        <TouchableOpacity
-                            style={[{ backgroundColor: colors.grey }, styles.colorbutton]}
-                            onPress={() => setColor(colors.grey)}
-                        />
-                        <TouchableOpacity
-                            style={[{ backgroundColor: colors.green }, styles.colorbutton]}
-                            onPress={() => setColor(colors.green)}
-                        />
-                    </View>
-
-                    {/* Authenticate user & Open chatroom, passing user name and background color as props */}
-                    <Pressable
-                        onPress={onHandleStart}
-                        style={({ pressed }) => [
-                            {
-                                backgroundColor: pressed
-                                    ? '#585563'
-                                    : '#757083'
-                            },
-                            styles.button
-                        ]}
-                    >
-                        <Text style={styles.buttontext}>Start Chatting</Text>
-                    </Pressable>
-                </View>
-            </ImageBackground>
-            {Platform.OS === 'android' ? <KeyboardAvoidingView behavior="height" /> : null}
-        </View>
-    )
-}
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-
-    image: {
-        flex: 1,
-        flexDirection: 'column',
-        justifyContent: 'space-evenly',
-        alignItems: 'center',
-    },
-
-    title: {
-        fontSize: 45,
-        fontWeight: '600',
-        color: '#ffffff',
-    },
-
-    box: {
-        width: '88%',
-        backgroundColor: 'white',
-        alignItems: 'center',
-        height: '44%',
-        justifyContent: 'space-evenly',
-
-    },
-
-    input: {
-        height: 50,
-        width: '88%',
-        fontSize: 16,
-        fontWeight: '300',
-        color: '#757083',
-        borderColor: 'gray',
-        borderWidth: 1,
-        paddingHorizontal: 10,
-
-    },
-
-    text: {
-        color: '#757083',
-        fontSize: 16,
-        fontWeight: '300',
-    },
-
-    colorContainer: {
-        width: '88%',
-        flexDirection: 'row',
-        justifyContent: 'space-evenly',
-    },
-
-    colorbutton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-    },
-
-    button: {
-        height: 50,
-        width: '88%',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    buttontext: {
-        color: '#ffffff',
-        fontSize: 16,
-        fontWeight: '600',
+        this.referenceChatMessages.add({
+            uid: this.state.uid,
+            _id: message._id,
+            text: message.text || "",
+            createdAt: message.createdAt,
+            user: this.state.user,
+            image: message.image || "",
+            location: message.location || null,
+        });
     }
-});
+
+    //Delete messages form AsynStorage
+    async deleteMessages() {
+        try {
+            await AsyncStorage.removeItem('messages');
+            this.setState({
+                messages: []
+            })
+        } catch (error) {
+            console.log(error.message);
+        }
+    }
+
+    //Save messages into AsychStorage
+    async saveMessages() {
+        try {
+            await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
+        } catch (error) {
+            console.log(error.message);
+        }
+    }
+
+    //when a message is sent, calls saveMessage
+    onSend(messages = []) {
+        this.setState((previousState) => ({
+            messages: GiftedChat.append(previousState.messages, messages),
+        }), () => {
+            this.addMessage();
+            this.saveMessages();//<-----------new for asynch, should it go here?
+        });
+    }
+
+
+    componentDidMount() {
+
+        //when component mounts, display user name in the title
+        const name = this.props.route.params.name;
+        this.props.navigation.setOptions({ title: name });
+
+        //take snapshot of messages collection in the Firestone Database
+        this.referenceChatMessages = firebase.firestore().collection('messages');
+        this.unsubscribe = this.referenceChatMessages.onSnapshot(this.onCollectionUpdate)
+
+        //Check if user is connected
+        NetInfo.fetch().then(connection => {
+            if (connection.isConnected) {
+                this.setState({ isConnected: true });
+                console.log('online');
+            } else {
+                console.log('offline');
+            }
+
+
+            //User Authentication on Firebase
+            this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+                if (!user) {
+                    await firebase.auth().signInAnonymously();
+                }
+                this.setState({
+                    uid: user.uid,
+                    messages: [],
+                    user: {
+                        _id: user.uid,
+                        name: name,
+                        avatar: "https://placeimg.com/140/140/any",
+                    },
+                });
+                this.unsubscribe = this.referenceChatMessages
+                    .orderBy("createdAt", "desc")
+                    .onSnapshot(this.onCollectionUpdate);
+            });
+        });
+    }
+
+    //Get Messages from AsyncStorage if user is offline
+    async getMessages() {
+        let messages = '';
+        try {
+            messages = await AsyncStorage.getItem('messages') || [];
+            this.setState({
+                messages: JSON.parse(messages)
+            });
+        } catch (error) {
+            console.log(error.message);
+        }
+    };
+
+    componentWillUnmount() {
+        // close connections when app is closed
+        this.unsubscribe();
+        this.authUnsubscribe();
+    }
+
+
+    // When user is offline disable sending new messages 
+    renderInputToolbar(props) {
+        if (this.state.isConnected == false) {
+        } else {
+            return (
+                <InputToolbar
+                    {...props}
+                />
+            );
+        }
+    }
+
+    // Change the color of the user/right bubble 
+    renderBubble(props) {
+        return (
+            <Bubble
+                {...props}
+                wrapperStyle={{
+                    right: {
+                        backgroundColor: 'blue'
+                    },
+                    left: {
+                        backgroundColor: 'white'
+                    }
+                }}
+            />
+        )
+    }
+
+    render() {
+        let bgColor = this.props.route.params.bgColor;
+        return (
+            <View style={{ flex: 1, backgroundColor: bgColor }}>
+                <GiftedChat
+                    renderBubble={this.renderBubble.bind(this)}
+                    renderUsernameOnMessage={true}
+                    renderInputToolbar={this.renderInputToolbar.bind(this)}
+                    messages={this.state.messages}
+                    onSend={messages => this.onSend(messages)}
+                    user={{
+                        _id: this.state.user._id,
+                        name: this.state.name,
+                        avatar: this.state.user.avatar
+                    }}
+                />
+                <Button
+                    title="Go to Start"
+                    onPress={() => this.props.navigation.navigate("Start")}
+                />
+
+                {Platform.OS === 'android' ? <KeyboardAvoidingView behavior="height" /> : null}
+            </View>
+        );
+    }
+}
