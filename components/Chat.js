@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, Button, Platform, KeyboardAvoidingView } from 'react-native';
 import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
-import firebase from "firebase";
-import "firebase/firestore";
+import {db,auth} from '../config/firebase';
+import {collection} from "firebase/firestore";
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo';
 
@@ -26,7 +26,7 @@ export default class Chat extends React.Component {
 
 
         //Config parameters for the database
-        const firebaseConfig = {
+       /* const firebaseConfig = {
             apiKey: "AIzaSyCWbJ4FUbljnu9BSekgF7v5S4tt39rrml4",
             authDomain: "chatapp-96fe4.firebaseapp.com",
             projectId: "chatapp-96fe4",
@@ -39,10 +39,10 @@ export default class Chat extends React.Component {
         //initialize 
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
-        }
+        }*/
 
         //references the messages collection in the database
-        this.referenceChatMessages = firebase.firestore().collection("messages");
+        this.referenceChatMessages = collection(db,"messages");
     }
 
     onCollectionUpdate = (querySnapshot) => {
@@ -124,7 +124,7 @@ export default class Chat extends React.Component {
         this.props.navigation.setOptions({ title: name });
 
         //take snapshot of messages collection in the Firestone Database
-        this.referenceChatMessages = firebase.firestore().collection('messages');
+        this.referenceChatMessages = collection(db,'messages');
         this.unsubscribe = this.referenceChatMessages.onSnapshot(this.onCollectionUpdate)
 
         //Check if user is connected
@@ -138,9 +138,9 @@ export default class Chat extends React.Component {
 
 
             //User Authentication on Firebase
-            this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+            this.authUnsubscribe = auth.onAuthStateChanged(async (user) => {
                 if (!user) {
-                    await firebase.auth().signInAnonymously();
+                    await auth.signInAnonymously();
                 }
                 this.setState({
                     uid: user.uid,
