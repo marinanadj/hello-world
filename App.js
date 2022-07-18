@@ -1,77 +1,23 @@
-import React, { useState, createContext, useContext, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+const firebase = require('firebase');
 
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './config/firebase';
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyDRpnQNgXcRpr1TDBFhmA2eP-2D7ANVJ_o",
+  authDomain: "web-app-5e13f.firebaseapp.com",
+  projectId: "web-app-5e13f",
+  storageBucket: "web-app-5e13f.appspot.com",
+  messagingSenderId: "1059875359492",
+  appId: "1:1059875359492:web:993c18589fb6ef151b9e51",
+  measurementId: "G-S526CTD1E2"
+};
 
-// import the screens
-import Start from './components/Start';
-import Chat from './components/Chat';
-
-// import react native gesture handler
-import 'react-native-gesture-handler';
-
-// import react Navigation
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-
-// Create the navigator
-const Stack = createStackNavigator();
-
-// Create a contect for the user data
-const AuthenticatedUserContext = createContext({});
-
-// Create a Provider function to allow screen components to acces the current user
-const AuthenticatedUserProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-
-  return (
-    <AuthenticatedUserContext.Provider value={{ user, setUser }}>
-      {children}
-    </AuthenticatedUserContext.Provider>
-  )
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
 }
 
-function RootNavigator() {
-  const { user, setUser } = useContext(AuthenticatedUserContext);
-  const [isLoading, setIsLoading] = useState(true);
+// Initialize Cloud Firestore and get a reference to the service (db)
+export const db = firebase.firestore();
 
-  useEffect(() => {
-    // onAuthStateChanges returns an unsubscriber
-    const unsubscribeAuth = onAuthStateChanged(
-      auth,
-      async authenticatedUser => {
-        authenticatedUser ? setUser(authenticatedUser) : setUser(null);
-        setIsLoading(false);
-      }
-    );
-
-    // unsubscribe auth listener to unmount
-    return unsubscribeAuth;
-  }, [user]);
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size='large' />
-      </View>
-    );
-  }
-
-  return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName='Start'>
-        <Stack.Screen name='Chat' component={Chat} />
-        <Stack.Screen name='Start' component={Start} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
-}
-
-export default function App() {
-  return (
-    <AuthenticatedUserProvider>
-      <RootNavigator />
-    </AuthenticatedUserProvider>
-  );
-}
+// Get a reference to the Firebase auth object
+export const auth = await firebase.auth();

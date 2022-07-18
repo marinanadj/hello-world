@@ -1,104 +1,65 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
 import { StyleSheet, View, Platform, KeyboardAvoidingView, Text } from 'react-native';
 
-import { collection, onSnapshot, addDoc, query, orderBy } from "firebase/firestore";
+import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat"
 
 import { auth, db } from '../config/firebase';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-
-
 
 export default function Chat(props) {
     // Retrieving the name and color properties passed from the Start Screen
     let { name, color } = props.route.params;
 
     // State to hold messages
-    const [messages, setMessages] = useState([]);
-
-    // State to hold information if user is offline or online
-    const [isConnected, setIsConnected] = useState();
+    const [state, setState] = useState({
+        messages: [],
+        uid: 0,
+        user: {
+            _id: "",
+            name: "",
+            avatar: "",
+            image: null,
+            location: null,
+        },
+        isConnected: false,
+    });
 
     // Create reference to the messages collection on firestore
-    const messagesRef = collection(db, 'messages');
+    let messagesRef = null;
 
-    // OFFLINE: Create functions to display messages when user is offline
-    // 1. Save messages to async storage
-    const saveMessages = async () => {
-        try {
-            await AsyncStorage.setItem('messages', JSON.stringify(messages));
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
-
-    // 2. Retrieve messages from async storage
-    const getMessages = async () => {
-        let messages = '';
-        try {
-            messages = await AsyncStorage.getItem('messages') || [];
-            setMessages(JSON.parse(messages));
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
-
-    // 3. Delete messages from async storage (for development purposes only)
-    const deleteMessages = async () => {
-        try {
-            await AsyncStorage.removeItem('messages');
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
-
-    useEffect(() => {
+    useEffect(async () => {
         // Set the screen title to the user name entered in the start screen
         props.navigation.setOptions({ title: name });
 
-        // Create variable to hold unsubsriber
+        // Create a query to the messages collection, retrieving all messages sorted by their date of creation
+        // const messagesQuery = messagesRef.orderBy("createdAt", "desc")
+
         let unsubscribe;
-
-        // Check if user is offline or online using NetInfo
-        NetInfo.fetch().then(connection => {
-            if (connection.isConnected) {
-                setIsConnected(true);
-            } else {
-                setIsConnected(false);
+        messagesRef = db.collection("messages");
+        const authUnsubscribe = auth.onAuthStateChanged((user) => {
+            if (!user) {
+                auth.signInAnonymously();
             }
-        });
 
-        // If user is online, retrieve messages from firebase store, if offline use AsyncStorage
-        if (isConnected) {
-            // Create a query to the messages collection, retrieving all messages sorted by their date of creation
-            const messagesQuery = query(messagesRef, orderBy("createdAt", "desc"));
+            setState({
+                uid: user.uid,
+                messages: [],
+                user: {
+                    _id: user.uid,
+                    name: name,
+                    avatar: "https://placeimg.com/140/140/any",
+                },
+            });
 
             // onSnapshot returns an unsubscriber, listening for updates to the messages collection
-            unsubscribe = onSnapshot(messagesQuery, onCollectionUpdate);
-
-            // Delete previously saved messages in asyncStorage
-            deleteMessages();
-            // Save messages to asyncStorage
-            saveMessages();
-
-            // unsubsribe snapshot listener on unmount
-            return () => unsubscribe();
-        }
-        else {
-            // Load messages from asyncStorage
-            getMessages();
-        }
-    }, [isConnected]);
-
+            unsubscribe = messagesRef.orderBy("createdAt", "desc").onSnapshot(onCollectionUpdate);
+        })
+        // unsubsribe snapshot listener on unmount
+        return () => unsubscribe(), authUnsubscribe();
+    }, []);
 
     // Add the last message of the messages state to the Firestore messages collection
     const addMessage = (message) => {
-        addDoc(messagesRef, {
+        messagesRef.add({
             _id: message._id,
             text: message.text || '',
             createdAt: message.createdAt,
@@ -109,20 +70,33 @@ export default function Chat(props) {
     // Create custom onSend function, appending the newly created message to the messages state, 
     // then calling addMessage to add to Firestore
     const onSend = useCallback((messages = []) => {
-        setMessages(previousMessages => GiftedChat.append(previousMessages, messages));
-        addMessage(messages[0]);
+        setState((previousState) => ({
+            messages: GiftedChat.append(previousState.messages, messages),
+        }), () => {
+            addMessage();
+        });
     }, [])
 
     // Reading snapshot data of messages collection, adding messages to messages state
     const onCollectionUpdate = (querySnapshot) => {
-        setMessages(
-            querySnapshot.docs.map(doc => ({
-                _id: doc.data()._id,
-                createdAt: doc.data().createdAt.toDate(),
-                text: doc.data().text,
-                user: doc.data().user
-            }))
-        )
+        const messages = [];
+        // go through each document
+        querySnapshot.forEach((doc) => {
+            // get the QueryDocumentSnapshot's data
+            var data = doc.data();
+            messages.push({
+                _id: data._id,
+                text: data.text,
+                createdAt: data.createdAt.toDate(),
+                user: data.user,
+                image: data.image || null,
+                location: data.location || null,
+            });
+        });
+
+        setState({
+            messages: messages,
+        });
     }
 
     // Customize the color of the sender bubble
@@ -139,22 +113,6 @@ export default function Chat(props) {
         )
     }
 
-    // Hide input bar if user is online so that they cannot create or send messages
-    const renderInputToolbar = (props) => {
-        if (!isConnected) {
-            // Hide Toolbar
-        }
-        else {
-            // Display Toolbar
-            return (
-                <InputToolbar
-                    {...props}
-                />
-            );
-        }
-    }
-
-
 
     return (
         // Setting the background color to the color picked by the user in the start screen
@@ -163,8 +121,7 @@ export default function Chat(props) {
         >
             <GiftedChat
                 renderBubble={renderBubble.bind()}
-                renderInputToolbar={renderInputToolbar.bind()}
-                messages={messages}
+                messages={state.messages}
                 showAvatarForEveryMessage={true}
                 onSend={messages => onSend(messages)}
                 // Add user data to message, using name provided in start screen and uid from auth object
