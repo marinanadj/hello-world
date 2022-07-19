@@ -1,176 +1,218 @@
-import React from "react";
+import { StyleSheet, TouchableOpacity, View, Text } from "react-native";
+import React from 'react';
 import PropTypes from "prop-types";
-//imports for communicatios features (permission and device camera/image gallery)
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-//native component to allow text components to be clickable (and button)
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { storage } from "../config/firebase";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
+import * as Permissions from 'expo-permissions';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+
+import { storage } from '../config/firebase';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+
+
+
 
 export default class CustomActions extends React.Component {
-  imagePicker = async () => {
-    // expo permission
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    try {
-      if (status === "granted") {
-        // pick image
-        let result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images, // only images are allowed
-        }).catch((error) => console.log(error));
-        // canceled process
-        if (!result.cancelled) {
-          const imageUrl = await this.uploadImageFetch(result.uri);
-          this.props.onSend({ image: imageUrl });
-        }
-      }
-    } catch (error) {
-      console.log(error.message);
-    }
-  };
-
-  takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    try {
-      if (status === "granted") {
-        let result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        }).catch((error) => console.log(error));
-
-        if (!result.cancelled) {
-          const imageUrl = await this.uploadImageFetch(result.uri);
-          this.props.onSend({ image: imageUrl });
-        }
-      }
-    } catch (error) {
-      console.log(error.message);
-    }
-  };
-
-  //location function
-  getLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const result = await Location.getCurrentPositionAsync({}).catch(
-          (error) => console.log(error)
-        );
-        if (result) {
-          this.props.onSend({
-            location: {
-              longitude: result.coords.longitude,
-              latitude: result.coords.latitude,
+    /**
+     * Open Action Sheet to let user select which aciton to perform (see options)
+     */
+    onActionPress = () => {
+        const options = [
+            'Choose From Library', 
+            'Take Picture', 
+            ' Send Location', 
+            'Cancel'
+        ];
+        const cancelButtonIndex = options.length - 1;
+        this.context.actionSheet().showActionSheetWithOptions(
+            {
+                options,
+                cancelButtonIndex,
             },
-          });
-        }
-      }
-    } catch (error) {
-      console.log(error.message);
+            async (buttonIndex) => {
+                switch (buttonIndex) {
+                    case 0:
+                        console.log('pick an image');
+                        return this.pickImage();;
+                    case 1:
+                        console.log('take picture');
+                        return this.takePhoto();
+                    case 2:
+                        console.log('send location');
+                        return this.getLocation();
+                    default:
+                }
+            }
+        );
     }
-  };
 
-  uploadImageFetch = async (uri) => {
-    //To create your own blob, you need to create a new XMLHttpRequest and set its responseType to 'blob'. Then, open the connection and retrieve the URI’s data (the image) via GET:
-    const blob = await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      //on load
-      xhr.onload = function () {
-        resolve(xhr.response);
-      };
-      //on error
-      xhr.onerror = function (e) {
-        console.log(e);
-        reject(new TypeError("Network request failed"));
-      };
-      //on complete
-      xhr.responseType = "blob";
-      xhr.open("GET", uri, true);
-      xhr.send(null);
-    });
+    /**
+     * allows users to pick image from their library, 
+     * turning it into a blob, uploading it to Firebase Storage and then adding the image URL to the message object
+     */
+    pickImage = async () => {
+        // Ask user for permission to access photo library
+        const { status } = await Permissions.askAsync(Permissions.MEDIA_LIBRARY);
 
-    const imageNameBefore = uri.split("/");
-    const imageName = imageNameBefore[imageNameBefore.length - 1];
-    // Create a child reference
-    //images will be uploaded in the subfolder "images"
-    const imagesRef = ref(storage, `images/${imageName}`);
-    // imagesRef now points to 'images'
-    //upload blob
-    await uploadBytes(imagesRef, blob);
-    console.log("blob uploaded");
-    const downloadUrl = await getDownloadURL(imagesRef);
-    console.log(
-      "file available on firebase storage at the following link",
-      downloadUrl
-    );
-    return downloadUrl;
-  };
+        try {
+            // If permission is granted, let user choose a picture
+            if (status === 'granted') {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: 'Images',
+                }).catch(error => console.log(error));
 
-  onActionPress = () => {
-    const options = [
-      "Choose from library",
-      "Take picture",
-      "Send location",
-      "Cancel",
-    ];
-    const cancelButtonIndex = options.length - 1;
-    this.context.actionSheet().showActionSheetWithOptions(
-      {
-        options,
-        cancelButtonIndex,
-      },
-      async (buttonIndex) => {
-        switch (buttonIndex) {
-          case 0:
-            console.log("user wants to pick an image");
-            return this.imagePicker();
-          case 1:
-            console.log("user wants to take a photo");
-            return this.takePhoto();
-          case 2:
-            console.log("user wants to get their location");
-            return this.getLocation();
+                // If the user doesn't cancel process, upload image to Firebase and the fetch the respective imageUrl
+                if (!result.cancelled) {
+                    const blob = await this.createBlob(result.uri);
+                    const imageUrl = await this.uploadImageFetch(blob);
+                    console.log("I'm adding this URL to the message!: " + imageUrl);
+                    this.props.onSend({ image: imageUrl });
+                    console.log("I'm already sending this message! ");
+                }
+            }
+        } catch (err) {
+            console.log(err.message);
         }
-      }
-    );
-  };
-  render() {
-    return (
-      <TouchableOpacity style={[styles.container]} onPress={this.onActionPress}>
-        <View style={[styles.wrapper, this.props.wrapperStyle]}>
-          <Text style={[styles.iconText, this.props.iconTextStyle]}>+</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
+    }
+
+    /**
+     * allows users to take a picture,
+     * turning it into a blob, uploading it to Firebase Storage and then adding the image URL to the message object
+     */
+
+    takePhoto = async () => {
+
+        // Ask user for permission to access photo library and camera
+        const { status } = await Permissions.askAsync(Permissions.MEDIA_LIBRARY, Permissions.CAMERA);
+        try {
+            // If permission is granted, let user take a picture
+            if (status === 'granted') {
+                let result = await ImagePicker.launchCameraAsync().catch(err => console.log(err));
+
+                // If the user doesn't cancel process, set image status to the image took by the user
+                if (!result.cancelled) {
+                    const blob = await this.createBlob(result.uri);
+                    const imageUrl = await this.uploadImageFetch(blob);
+                    this.props.onSend({ image: imageUrl });
+                }
+            }
+        } catch (err) {
+            console.log(err.message);
+        }
+    }
+
+    /**
+     * gets the current location of the user and returns the long and lat details to render in the MapView
+     */
+    getLocation = async () => {
+        // Ask user for permission to access current location
+        const { status } = await Permissions.askAsync(Permissions.LOCATION);
+        try {
+            // If permission is granted, get the current location
+            if (status === 'granted') {
+                console.log('Getting current position...');
+                let result = await Location.getCurrentPositionAsync({}).catch(err => console.log(err));
+
+                // If the user doesn't cancel process, set current location to display in map view
+                if (result) {
+                    this.props.onSend({ location: result });
+                    console.log('Location successfully set!')
+                }
+            }
+        } catch (err) {
+            console.log(err.message);
+        }
+    }
+
+    /**
+     * creates a blob file out of a given URI
+     * @param {string} uri 
+     * @returns blob
+     */
+    createBlob = async (uri) => {
+        const blob = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                resolve(xhr.response);
+            };
+            xhr.onerror = function (e) {
+                console.log(e);
+                reject(new TypeError('Network request failed'));
+            };
+            xhr.responseType = 'blob';
+            xhr.open('GET', uri, true);
+            xhr.send(null);
+        });
+
+        const imageNameBefore = uri.split("/");
+        const imageName = imageNameBefore[imageNameBefore.length - 1];
+
+        const file = {
+            name: imageName,
+            blob: blob,
+        }
+        console.log('Successfully converted file to blob');
+        return file;
+    }
+
+    /**
+     * uploads an image to Firebase and then returns the path to the image
+     * @returns the URL path to the image on Firebase Cloud Storage
+     */
+    uploadImageFetch = async (file) => {
+        // Creating a reference to the images folder in Firebase Cloud Storage
+        const imageRef = ref(storage, 'images/' + file.name);
+
+        // Uploading the passed blob to Firebase Cloud Storage
+        await uploadBytes(imageRef, file.blob);
+        console.log('Uploading finished!');
+
+        // Retrieveing the download url from the uploaded blob
+        const downloadURL = await getDownloadURL(imageRef);
+        console.log('File available at', downloadURL);
+
+        // Return url
+        return downloadURL;
+    }
+
+    render() {
+        return (
+            <TouchableOpacity
+                accessible={true}
+                accessibilityLabel="More options"
+                accessibilityHint="Lets you choose to send an image or your geolocation."
+                style={styles.container}
+                onPress={this.onActionPress} >
+                <View style={[styles.wrapper, this.props.wrapperStyle]}>
+                    <Text style={[styles.iconText, this.props.iconTextStyle]}>+</Text>
+                </View>
+            </TouchableOpacity>
+        )
+    }
+
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: 26,
-    height: 26,
-    marginLeft: 10,
-    marginBottom: 10,
-  },
-  wrapper: {
-    borderRadius: 13,
-    borderColor: "#b2b2b2",
-    borderWidth: 2,
-    flex: 1,
-  },
-  iconText: {
-    color: "#b2b2b2",
-    fontWeight: "bold",
-    fontSize: 16,
-    backgroundColor: "transparent",
-    textAlign: "center",
-  },
-});
+    container: {
+        width: 26,
+        height: 26,
+        marginLeft: 10,
+        marginBottom: 10,
+    },
+    wrapper: {
+        borderRadius: 13,
+        borderColor: '#b2b2b2',
+        borderWidth: 2,
+        flex: 1,
+    },
+    iconText: {
+        color: '#b2b2b2',
+        fontWeight: 'bold',
+        fontSize: 16,
+        backgroundColor: 'transparent',
+        textAlign: 'center',
+    },
+})
 
-//proptype for customactions component
 CustomActions.contextTypes = {
-  actionSheet: PropTypes.func,
+    actionSheet: PropTypes.func,
 };
