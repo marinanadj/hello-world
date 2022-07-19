@@ -1,182 +1,134 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
 import { StyleSheet, View, Platform, KeyboardAvoidingView, Text } from 'react-native';
+import MapView from 'react-native-maps';
 
-import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat"
+import { collection, onSnapshot, addDoc, query, orderBy } from "firebase/firestore";
 
 import { auth, db } from '../config/firebase';
-import React from 'react'
-import { GiftedChat, Bubble } from 'react-native-gifted-chat'
-import { View, Platform, AsyncStorage } from 'react-native'
-// import KeyboardSpacer from 'react-native-keyboard-spacer'
 
-export default class HelloChat extends React.Component {
-  state = {
-    messages: [],
-  }
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
- async saveMessages() {
-    try {
-      await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
-    } catch (error) {
-      console.log(error.message); 
-    }
-  }
+import CustomActions from './CustomActions';
 
-  async getMessages() {
-    let messages = '';
-    try {
-      messages = await AsyncStorage.getItem('messages') || [];
-      this.setState({
-        messages: JSON.parse(messages)
-      });
-    } catch (error) {
-      console.log(error.message);
-    }
-  }
-
-  async deleteMessages() {
-    try {
-      await AsyncStorage.removeItem('messages');
-    } catch (error) {
-      console.log(error.message);
-    }
-  }
- 
-
-  componentDidMount() {
-    this.getMessages();
-  }
-
-  onSend(messages = []) {
-    this.setState(previousState => ({
-      messages: GiftedChat.append(previousState.messages, messages),
-    }), () => {
-      this.saveMessages();
-    });
-  }
-
-  renderBubble(props) {
-    return (
-      <Bubble
-        {...props}
-        wrapperStyle={{
-          right: {
-            backgroundColor: '#000'
-          }
-        }}
-      />
-    )
-  }
-
-  render() {
-    return (
-      <View style={{flex:1, backgroundColor:'green'}}>
-        <GiftedChat
-         renderBubble={this.renderBubble}
-          messages={this.state.messages}
-          onSend={messages => this.onSend(messages)}
-          user={{
-            _id: 1,
-          }}
-         
-        />
-      </View>
-    )
-  }
-}
 
 export default function Chat(props) {
     // Retrieving the name and color properties passed from the Start Screen
     let { name, color } = props.route.params;
 
     // State to hold messages
-    const [state, setState] = useState({
-        messages: [],
-        uid: 0,
-        user: {
-            _id: "",
-            name: "",
-            avatar: "",
-            image: null,
-            location: null,
-        },
-        isConnected: false,
-    });
+    const [messages, setMessages] = useState([]);
+
+    // State to hold information if user is offline or online
+    const [isConnected, setIsConnected] = useState();
 
     // Create reference to the messages collection on firestore
-    let messagesRef = null;
+    const messagesRef = collection(db, 'messages');
 
-    useEffect(async () => {
+    // OFFLINE: Create functions to display messages when user is offline
+    // 1. Save messages to async storage
+    const saveMessages = async () => {
+        try {
+            await AsyncStorage.setItem('messages', JSON.stringify(messages));
+        }
+        catch (error) {
+            console.log(error.message);
+        }
+    }
+
+    // 2. Retrieve messages from async storage
+    const getMessages = async () => {
+        let messages = '';
+        try {
+            messages = await AsyncStorage.getItem('messages') || [];
+            setMessages(JSON.parse(messages));
+        }
+        catch (error) {
+            console.log(error.message);
+        }
+    }
+
+    // 3. Delete messages from async storage (for development purposes only)
+    const deleteMessages = async () => {
+        try {
+            await AsyncStorage.removeItem('messages');
+        }
+        catch (error) {
+            console.log(error.message);
+        }
+    }
+
+    useEffect(() => {
         // Set the screen title to the user name entered in the start screen
         props.navigation.setOptions({ title: name });
 
-        // Create a query to the messages collection, retrieving all messages sorted by their date of creation
-        // const messagesQuery = messagesRef.orderBy("createdAt", "desc")
-
+        // Create variable to hold unsubsriber
         let unsubscribe;
-        messagesRef = db.collection("messages");
-        const authUnsubscribe = auth.onAuthStateChanged((user) => {
-            if (!user) {
-                auth.signInAnonymously();
-            }
 
-            setState({
-                uid: user.uid,
-                messages: [],
-                user: {
-                    _id: user.uid,
-                    name: name,
-                    avatar: "https://placeimg.com/140/140/any",
-                },
-            });
+        // Check if user is offline or online using NetInfo
+        NetInfo.fetch().then(connection => {
+            if (connection.isConnected) {
+                setIsConnected(true);
+            } else {
+                setIsConnected(false);
+            }
+        });
+
+        // If user is online, retrieve messages from firebase store, if offline use AsyncStorage
+        if (isConnected) {
+            // Create a query to the messages collection, retrieving all messages sorted by their date of creation
+            const messagesQuery = query(messagesRef, orderBy("createdAt", "desc"));
 
             // onSnapshot returns an unsubscriber, listening for updates to the messages collection
-            unsubscribe = messagesRef.orderBy("createdAt", "desc").onSnapshot(onCollectionUpdate);
-        })
-        // unsubsribe snapshot listener on unmount
-        return () => unsubscribe(), authUnsubscribe();
-    }, []);
+            unsubscribe = onSnapshot(messagesQuery, onCollectionUpdate);
+
+            // Delete previously saved messages in asyncStorage
+            deleteMessages();
+            // Save messages to asyncStorage
+            saveMessages();
+
+            // unsubsribe snapshot listener on unmount
+            return () => unsubscribe();
+        }
+        else {
+            // Load messages from asyncStorage
+            getMessages();
+        }
+    }, [isConnected]);
+
 
     // Add the last message of the messages state to the Firestore messages collection
     const addMessage = (message) => {
-        messagesRef.add({
+        addDoc(messagesRef, {
             _id: message._id,
             text: message.text || '',
             createdAt: message.createdAt,
-            user: message.user
+            user: message.user,
+            image: message.image || null,
+            location: message.location || null,
         });
     }
 
     // Create custom onSend function, appending the newly created message to the messages state, 
     // then calling addMessage to add to Firestore
     const onSend = useCallback((messages = []) => {
-        setState((previousState) => ({
-            messages: GiftedChat.append(previousState.messages, messages),
-        }), () => {
-            addMessage();
-        });
+        setMessages(previousMessages => GiftedChat.append(previousMessages, messages));
+        addMessage(messages[0]);
     }, [])
 
     // Reading snapshot data of messages collection, adding messages to messages state
     const onCollectionUpdate = (querySnapshot) => {
-        const messages = [];
-        // go through each document
-        querySnapshot.forEach((doc) => {
-            // get the QueryDocumentSnapshot's data
-            var data = doc.data();
-            messages.push({
-                _id: data._id,
-                text: data.text,
-                createdAt: data.createdAt.toDate(),
-                user: data.user,
-                image: data.image || null,
-                location: data.location || null,
-            });
-        });
-
-        setState({
-            messages: messages,
-        });
+        setMessages(
+            querySnapshot.docs.map(doc => ({
+                _id: doc.data()._id,
+                createdAt: doc.data().createdAt.toDate(),
+                text: doc.data().text || '',
+                user: doc.data().user,
+                image: doc.data().image || null,
+                location: doc.data().location || null,
+            }))
+        )
     }
 
     // Customize the color of the sender bubble
@@ -193,6 +145,45 @@ export default function Chat(props) {
         )
     }
 
+    // Hide input bar if user is online so that they cannot create or send messages
+    const renderInputToolbar = (props) => {
+        if (!isConnected) {
+            // Hide Toolbar
+        }
+        else {
+            // Display Toolbar
+            return (
+                <InputToolbar
+                    {...props}
+                />
+            );
+        }
+    }
+
+    // Render the CustomActions component next to input bar to let user send images and geolocation
+    const renderCustomActions = (props) => {
+        return <CustomActions {...props} />;
+    };
+
+    // Render Custom View to display map when user shares geolocation
+    const renderCustomView = (props) => {
+        const { currentMessage } = props;
+        if (currentMessage.location) {
+            return (
+                <MapView
+                    style={styles.map}
+                    region={{
+                        latitude: currentMessage.location.coords.latitude,
+                        longitude: currentMessage.location.coords.longitude,
+                        latitudeDelta: 0.0922,
+                        longitudeDelta: 0.0421,
+                    }}
+                />
+            );
+        }
+        return null;
+    }
+
 
     return (
         // Setting the background color to the color picked by the user in the start screen
@@ -201,7 +192,10 @@ export default function Chat(props) {
         >
             <GiftedChat
                 renderBubble={renderBubble.bind()}
-                messages={state.messages}
+                renderInputToolbar={renderInputToolbar.bind()}
+                renderActions={renderCustomActions}
+                renderCustomView={renderCustomView}
+                messages={messages}
                 showAvatarForEveryMessage={true}
                 onSend={messages => onSend(messages)}
                 // Add user data to message, using name provided in start screen and uid from auth object
@@ -222,4 +216,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+
+    map: {
+        width: 150,
+        height: 100,
+        borderRadius: 13,
+        margin: 3
+    }
 })
