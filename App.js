@@ -1,23 +1,37 @@
-const firebase = require('firebase');
+import React, { Component } from 'react'
 
-// Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyDRpnQNgXcRpr1TDBFhmA2eP-2D7ANVJ_o",
-  authDomain: "web-app-5e13f.firebaseapp.com",
-  projectId: "web-app-5e13f",
-  storageBucket: "web-app-5e13f.appspot.com",
-  messagingSenderId: "1059875359492",
-  appId: "1:1059875359492:web:993c18589fb6ef151b9e51",
-  measurementId: "G-S526CTD1E2"
-};
+// import the screens
+import Start from './components/Start';
+import Chat from './components/Chat';
 
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// import react native gesture handler
+import 'react-native-gesture-handler';
+
+// import react Navigation
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+
+// Create the navigator
+const Stack = createStackNavigator();
+
+export default class App extends React.Component {
+
+  render() {
+    return (
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Start"
+        >
+          <Stack.Screen
+            name="Chat App"
+            component={Start}
+          />
+          <Stack.Screen
+            name="Chat"
+            component={Chat}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  }
 }
-
-// Initialize Cloud Firestore and get a reference to the service (db)
-export const db = firebase.firestore();
-
-// Get a reference to the Firebase auth object
-export const auth = await firebase.auth();
