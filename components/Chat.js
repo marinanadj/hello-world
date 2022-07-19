@@ -4,6 +4,86 @@ import { StyleSheet, View, Platform, KeyboardAvoidingView, Text } from 'react-na
 import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat"
 
 import { auth, db } from '../config/firebase';
+import React from 'react'
+import { GiftedChat, Bubble } from 'react-native-gifted-chat'
+import { View, Platform, AsyncStorage } from 'react-native'
+// import KeyboardSpacer from 'react-native-keyboard-spacer'
+
+export default class HelloChat extends React.Component {
+  state = {
+    messages: [],
+  }
+
+ async saveMessages() {
+    try {
+      await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
+    } catch (error) {
+      console.log(error.message); 
+    }
+  }
+
+  async getMessages() {
+    let messages = '';
+    try {
+      messages = await AsyncStorage.getItem('messages') || [];
+      this.setState({
+        messages: JSON.parse(messages)
+      });
+    } catch (error) {
+      console.log(error.message);
+    }
+  }
+
+  async deleteMessages() {
+    try {
+      await AsyncStorage.removeItem('messages');
+    } catch (error) {
+      console.log(error.message);
+    }
+  }
+ 
+
+  componentDidMount() {
+    this.getMessages();
+  }
+
+  onSend(messages = []) {
+    this.setState(previousState => ({
+      messages: GiftedChat.append(previousState.messages, messages),
+    }), () => {
+      this.saveMessages();
+    });
+  }
+
+  renderBubble(props) {
+    return (
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: '#000'
+          }
+        }}
+      />
+    )
+  }
+
+  render() {
+    return (
+      <View style={{flex:1, backgroundColor:'green'}}>
+        <GiftedChat
+         renderBubble={this.renderBubble}
+          messages={this.state.messages}
+          onSend={messages => this.onSend(messages)}
+          user={{
+            _id: 1,
+          }}
+         
+        />
+      </View>
+    )
+  }
+}
 
 export default function Chat(props) {
     // Retrieving the name and color properties passed from the Start Screen
