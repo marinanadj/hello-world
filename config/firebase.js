@@ -1,4 +1,6 @@
-const firebase = require('firebase');
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+
 
 // Firebase config
 const firebaseConfig = {
@@ -13,12 +15,7 @@ const firebaseConfig = {
 
 
 // Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
+const app = initializeApp(firebaseConfig);
 
 // Initialize Cloud Firestore and get a reference to the service (db)
-export const db = firebase.firestore();
-
-// Get a reference to the Firebase auth object
-export const auth = await firebase.auth();
+export const db = getFirestore(app);
