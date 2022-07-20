@@ -1,4 +1,4 @@
-const firebase = require('firebase');
+import React, { useState } from "react";
 
 // Firebase config
 const firebaseConfig = {
@@ -12,13 +12,26 @@ const firebaseConfig = {
 };
 
 
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// import react native gesture handler
+import "react-native-gesture-handler";
+
+// import react Navigation
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+
+import Start from "./components/Start";
+import Chat from "./components/Chat";
+
+// Create the navigator
+const Stack = createStackNavigator();
+
+export default function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Screen1">
+        <Stack.Screen name="Start" component={Start} />
+        <Stack.Screen name="Chat" component={Chat} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 }
-
-// Initialize Cloud Firestore and get a reference to the service (db)
-export const db = firebase.firestore();
-
-// Get a reference to the Firebase auth object
-export const auth = await firebase.auth();

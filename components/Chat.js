@@ -1,226 +1,256 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
-import { StyleSheet, View, Platform, KeyboardAvoidingView, Text } from 'react-native';
-import MapView from 'react-native-maps';
-
-import { collection, onSnapshot, addDoc, query, orderBy } from "firebase/firestore";
-
-import { auth, db } from '../config/firebase';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-
-
-
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Platform,
+  KeyboardAvoidingView,
+  Text,
+  Button,
+} from "react-native";
+import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat";
+import { db } from "../config/firebase";
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  query,
+  orderBy,
+} from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
+// Communication features
+//import * as Speech from "expo-speech";
+import MapView from "react-native-maps";
+import CustomActions from "./CustomActions.js";
+import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 
 export default function Chat(props) {
-    // Retrieving the name and color properties passed from the Start Screen
-    let { name, color } = props.route.params;
+  let { name, bgColor } = props.route.params;
+  const [messages, setMessages] = useState([]);
+  const [uid, setUid] = useState("");
+  const [loggedInText, setText] = useState("");
+  const [isOnline, setOnline] = useState();
 
-    // State to hold messages
-    const [messages, setMessages] = useState([]);
+  const auth = getAuth();
+  // creating a references to messages collection
+  const messagesCollection = collection(db, "messages");
 
-    // State to hold information if user is offline or online
-    const [isConnected, setIsConnected] = useState();
+  // Text-to-speech feature
+  /*const speak = () => {
+    const thingToSay = messages[0].text;
+    Speech.speak(thingToSay);
+  };*/
 
-    // Create reference to the messages collection on firestore
-    const messagesRef = collection(db, 'messages');
+  //Run once after component mount
+  useEffect(() => {
+    props.navigation.setOptions({ title: name });
 
-    // OFFLINE: Create functions to display messages when user is offline
-    // 1. Save messages to async storage
-    const saveMessages = async () => {
-        try {
-            await AsyncStorage.setItem('messages', JSON.stringify(messages));
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
+    // If user is online, retrieve messages from firebase store, if offline use AsyncStorage
+    NetInfo.fetch().then((connection) => {
+      setOnline(connection.isConnected);
+      if (!connection.isConnected) {
+        // WORKING WITH ASYNCSTORAGE: get messages for asyncStorage and set the state
+        getMessages();
+      } else {
+        // WORKING WITH FIRESTORE
+        // Fetch collection and query on it
+        const messagesQuery = query(
+          messagesCollection,
+          orderBy("createdAt", "desc")
+        );
 
-    // 2. Retrieve messages from async storage
-    const getMessages = async () => {
-        let messages = '';
-        try {
-            messages = await AsyncStorage.getItem('messages') || [];
-            setMessages(JSON.parse(messages));
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
+        // listen to authentication events
+        const authUnsubscribe = onAuthStateChanged(auth, (user) => {
+          if (!user) {
+            signInAnonymously(auth);
+          }
 
-    // 3. Delete messages from async storage (for development purposes only)
-    const deleteMessages = async () => {
-        try {
-            await AsyncStorage.removeItem('messages');
-        }
-        catch (error) {
-            console.log(error.message);
-        }
-    }
-
-    useEffect(() => {
-        // Set the screen title to the user name entered in the start screen
-        props.navigation.setOptions({ title: name });
-
-        // Create variable to hold unsubsriber
-        let unsubscribe;
-
-        // Check if user is offline or online using NetInfo
-        NetInfo.fetch().then(connection => {
-            if (connection.isConnected) {
-                setIsConnected(true);
-            } else {
-                setIsConnected(false);
-            }
+          // update user state with user data
+          setUid(user.uid);
+          setText(`User ${user.uid}`);
+          console.log(user.uid);
         });
 
-        // If user is online, retrieve messages from firebase store, if offline use AsyncStorage
-        if (isConnected) {
-            // Create a query to the messages collection, retrieving all messages sorted by their date of creation
-            const messagesQuery = query(messagesRef, orderBy("createdAt", "desc"));
+        // listen for collection changes (Update state based on database snapshot)
+        let stopListeningToSnapshots = onSnapshot(
+          messagesQuery,
+          onCollectionUpdate
+        );
 
-            // onSnapshot returns an unsubscriber, listening for updates to the messages collection
-            unsubscribe = onSnapshot(messagesQuery, onCollectionUpdate);
+        //In here code will run once the component will unmount
+        return () => {
+          // stop listening for changes
+          stopListeningToSnapshots();
+          // stop listening to authentication
+          authUnsubscribe();
+        };
+      }
+    });
+  }, [isOnline]);
 
-            // Delete previously saved messages in asyncStorage
-            deleteMessages();
-            // Save messages to asyncStorage
-            saveMessages();
+  // WORKING WITH FIRESTORE //
 
-            // unsubsribe snapshot listener on unmount
-            return () => unsubscribe();
-        }
-        else {
-            // Load messages from asyncStorage
-            getMessages();
-        }
-    }, [isConnected]);
+  // GET messages from firestore collection(snapshot) and update state
+  const onCollectionUpdate = (querySnapshot) => {
+    let mess = [];
+    // go through each document
+    querySnapshot.forEach((doc) => {
+      // get the QueryDocumentSnapshot's data
+      mess.push({
+        _id: doc.data()._id,
+        createdAt: doc.data().createdAt.toDate(),
+        text: doc.data().text,
+        user: doc.data().user,
+        location: doc.data().location,
+        image: doc.data().image,
+      });
+    });
+    //Update state
+    setMessages(mess);
+    //Update asyncStorage
+    saveMessages(mess);
+  };
 
+  // ADD/PUT document(message) to firestore collection
+  const addMessage = (message) => {
+    addDoc(messagesCollection, {
+      _id: message._id,
+      createdAt: message.createdAt,
+      text: message.text || "",
+      user: message.user,
+      image: message.image || null,
+      location: message.location || null,
+    });
+  };
 
-    // Add the last message of the messages state to the Firestore messages collection
-    const addMessage = (message) => {
-        addDoc(messagesRef, {
-            _id: message._id,
-            text: message.text || '',
-            createdAt: message.createdAt,
-            user: message.user,
-            image: message.image || null,
-            location: message.location || null,
-        });
+  //Append new messages to the State and add to firestore collection (addMessage) and asyncStorage (saveMessages)
+  const onSend = (newMessages = []) => {
+    setMessages((prevMessages) => GiftedChat.append(prevMessages, newMessages));
+    //Last message appended to collection
+    addMessage(newMessages[0]);
+  };
+
+  // WORKING WITH ASYNCSTORAGE (local storage) //
+  // GET messages from asyncStorage
+  const getMessages = async () => {
+    let mesg = "";
+    try {
+      mesg = (await AsyncStorage.getItem("messages")) || [];
+      setMessages(JSON.parse(mesg));
+      console.log("Messages fetched from Async Storage", mesg);
+    } catch (error) {
+      console.log(error.message);
     }
-
-    // Create custom onSend function, appending the newly created message to the messages state, 
-    // then calling addMessage to add to Firestore
-    const onSend = useCallback((messages = []) => {
-        setMessages(previousMessages => GiftedChat.append(previousMessages, messages));
-        addMessage(messages[0]);
-    }, [])
-
-    // Reading snapshot data of messages collection, adding messages to messages state
-    const onCollectionUpdate = (querySnapshot) => {
-        setMessages(
-            querySnapshot.docs.map(doc => ({
-                _id: doc.data()._id,
-                createdAt: doc.data().createdAt.toDate(),
-                text: doc.data().text || '',
-                user: doc.data().user,
-                image: doc.data().image || null,
-                location: doc.data().location || null,
-            }))
-        )
+  };
+  // ADD messages to asyncStorage
+  const saveMessages = async (messages) => {
+    try {
+      await AsyncStorage.setItem("messages", JSON.stringify(messages));
+      //console.log("Messages: ", messages);
+    } catch (error) {
+      console.log(error.message);
     }
-
-    // Customize the color of the sender bubble
-    const renderBubble = (props) => {
-        return (
-            <Bubble
-                {...props}
-                wrapperStyle={{
-                    right: {
-                        backgroundColor: '#000'
-                    }
-                }}
-            />
-        )
+  };
+  // DELETE messages from asyncStorage and state
+  const deleteMessages = async () => {
+    try {
+      await AsyncStorage.removeItem("messages");
+      setMessages([]);
+    } catch (error) {
+      console.log(error.message);
     }
+  };
 
-    // Hide input bar if user is online so that they cannot create or send messages
-    const renderInputToolbar = (props) => {
-        if (!isConnected) {
-            // Hide Toolbar
-        }
-        else {
-            // Display Toolbar
-            return (
-                <InputToolbar
-                    {...props}
-                />
-            );
-        }
+  // style message bubble
+  const renderBubble = (props) => (
+    <Bubble
+      {...props}
+      // renderTime={() => <Text>Time</Text>}
+      // renderTicks={() => <Text>Ticks</Text>
+      textStyle={{
+        right: {
+          color: "black",
+        },
+        left: {
+          color: "white",
+        },
+      }}
+      wrapperStyle={{
+        left: {
+          backgroundColor: "teal",
+          padding: 7,
+        },
+        right: {
+          backgroundColor: "darkorange",
+          padding: 7,
+        },
+      }}
+    />
+  );
+
+  const renderInputToolbar = (props) => {
+    if (!isOnline) {
+      return <></>;
+    } else {
+      return <InputToolbar {...props} />;
     }
-
-    // Render the CustomActions component next to input bar to let user send images and geolocation
-    const renderCustomActions = (props) => {
-        return <CustomActions {...props} />;
-    };
-
-    // Render Custom View to display map when user shares geolocation
-    const renderCustomView = (props) => {
-        const { currentMessage } = props;
-        if (currentMessage.location) {
-            return (
-                <MapView
-                    style={styles.map}
-                    region={{
-                        latitude: currentMessage.location.coords.latitude,
-                        longitude: currentMessage.location.coords.longitude,
-                        latitudeDelta: 0.0922,
-                        longitudeDelta: 0.0421,
-                    }}
-                />
-            );
-        }
-        return null;
+  };
+  // to render ActionSheet with options
+  const renderCustomActions = (props) => {
+    return <CustomActions {...props} />;
+  };
+  // to render MapView if mess contains location data
+  const renderCustomView = (props) => {
+    const { currentMessage } = props;
+    if (currentMessage.location) {
+      return (
+        <MapView
+          style={{ width: 150, height: 100, borderRadius: 13, margin: 3 }}
+          region={{
+            latitude: currentMessage.location.latitude,
+            longitude: currentMessage.location.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+        />
+      );
     }
+    return null;
+  };
 
-
-    return (
-        // Setting the background color to the color picked by the user in the start screen
-        <View
-            style={[{ backgroundColor: color }, styles.container]}
-        >
-            <GiftedChat
-                renderBubble={renderBubble.bind()}
-                renderInputToolbar={renderInputToolbar.bind()}
-                renderActions={renderCustomActions}
-                renderCustomView={renderCustomView}
-                messages={messages}
-                showAvatarForEveryMessage={true}
-                onSend={messages => onSend(messages)}
-                // Add user data to message, using name provided in start screen and uid from auth object
-                user={{
-                    _id: auth?.currentUser?.uid,
-                    name: name,
-                    avatar: 'https://placeimg.com/140/140/any'
-                }}
-            />
-
-            {/* Avoid keyboard to overlap text messages on older Andriod versions */}
-            {Platform.OS === 'android' ? <KeyboardAvoidingView behavior="height" /> : null}
-        </View>
-    )
+  return (
+    <ActionSheetProvider>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: bgColor,
+        }}
+      >
+        <Text>{loggedInText}</Text>
+        {/* Chat UI */}
+        <GiftedChat
+          messages={messages}
+          onSend={onSend}
+          user={{
+            _id: uid,
+            name: name,
+            avatar:
+              "http://www.hidoctor.ir/wp-content/uploads/2014/02/Model-lebas-parastar-24.jpg",
+          }}
+          showUserAvatar={true}
+          showAvatarForEveryMessage={true}
+          renderBubble={renderBubble}
+          renderInputToolbar={renderInputToolbar}
+          renderActions={renderCustomActions}
+          renderCustomView={renderCustomView}
+          renderUsernameOnMessage={true}
+        />
+        {/*<Button title="Press to hear last message" onPress={speak} />*/}
+        {/* Ensures that the input field won’t be hidden beneath the keyboard */}
+        {Platform.OS === "android" ? (
+          <KeyboardAvoidingView behavior="height" />
+        ) : null}
+      </View>
+    </ActionSheetProvider>
+  );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-
-    map: {
-        width: 150,
-        height: 100,
-        borderRadius: 13,
-        margin: 3
-    }
-})
