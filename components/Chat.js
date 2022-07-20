@@ -1,35 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
-import {
-  View,
-  Platform,
-  KeyboardAvoidingView,
-  Text,
-  Button,
-} from "react-native";
-import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat";
-import { db } from "../config/firebase";
-import {
-  collection,
-  onSnapshot,
-  addDoc,
-  query,
-  orderBy,
-} from "firebase/firestore";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import NetInfo from "@react-native-community/netinfo";
-// Communication features
-//import * as Speech from "expo-speech";
-import MapView from "react-native-maps";
-import CustomActions from "./CustomActions.js";
-import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 
-export default function Chat(props) {
-  let { name, bgColor } = props.route.params;
-  const [messages, setMessages] = useState([]);
-  const [uid, setUid] = useState("");
-  const [loggedInText, setText] = useState("");
-  const [isOnline, setOnline] = useState();
 
   const auth = getAuth();
   // creating a references to messages collection
