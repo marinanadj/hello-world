@@ -26,7 +26,7 @@ export default function Start(props) {
     const onHandleStart = () => {
         if (isConnected) {
             auth.signInAnonymously()
-                .then() => {
+                .then(() => {
                     console.log('Login success');
                     props.navigation.navigate('Chat', { name: name, color: color });
                 })
