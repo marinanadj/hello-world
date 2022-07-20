@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React { useState } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+
 // Firebase config
 const firebaseConfig = {
 apiKey: "AIzaSyDRpnQNgXcRpr1TDBFhmA2eP-2D7ANVJ_o",
