@@ -25,8 +25,8 @@ export default function Start(props) {
     // Authenticate the user via Firebase and then redirect to the chat screen, passing the name and color props
     const onHandleStart = () => {
         if (isConnected) {
-            signInAnonymously(auth)
-                .then(() => {
+            auth.signInAnonymously()
+                .then() => {
                     console.log('Login success');
                     props.navigation.navigate('Chat', { name: name, color: color });
                 })
